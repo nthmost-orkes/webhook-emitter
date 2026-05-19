@@ -1,0 +1,18 @@
+[Unit]
+Description=Webhook Emitter — on-demand signed webhook firing for conductor testing
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=nthmost
+WorkingDirectory=/opt/webhook-emitter
+Environment=EMITTER_PORT=8765
+Environment=EMITTER_CONFIG=/etc/webhook-emitter/config.json
+Environment=EMITTER_LOG_LEVEL=info
+ExecStart=/opt/webhook-emitter/.venv/bin/webhook-emitter
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

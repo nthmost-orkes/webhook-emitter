@@ -1,0 +1,26 @@
+{
+  "smoke-hook-hmac": {
+    "target_url": "http://localhost:7001",
+    "webhook_id": "REPLACE_WITH_REGISTERED_WEBHOOK_ID",
+    "verifier": "HMAC_BASED",
+    "secret": "c2VrcmV0LWtleQ==",
+    "header_name": "X-Sig",
+    "default_payload": {"event": "smoke-fired"}
+  },
+  "github-style": {
+    "target_url": "http://localhost:7001",
+    "webhook_id": "REPLACE_WITH_REGISTERED_WEBHOOK_ID",
+    "verifier": "SIGNATURE_BASED",
+    "secret": "my-github-webhook-secret",
+    "header_name": "X-Hub-Signature-256",
+    "default_payload": {"event": "push", "repository": {"name": "example"}}
+  },
+  "header-only": {
+    "target_url": "http://localhost:7001",
+    "webhook_id": "REPLACE_WITH_REGISTERED_WEBHOOK_ID",
+    "verifier": "HEADER_BASED",
+    "header_name": "X-Magic",
+    "header_value": "open-sesame",
+    "default_payload": {}
+  }
+}
