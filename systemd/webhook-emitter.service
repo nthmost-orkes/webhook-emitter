@@ -10,6 +10,7 @@ WorkingDirectory=/opt/webhook-emitter
 Environment=EMITTER_PORT=8765
 Environment=EMITTER_CONFIG=/etc/webhook-emitter/config.json
 Environment=EMITTER_LOG_LEVEL=info
+EnvironmentFile=-/etc/webhook-emitter/env
 ExecStart=/opt/webhook-emitter/.venv/bin/webhook-emitter
 Restart=on-failure
 RestartSec=5

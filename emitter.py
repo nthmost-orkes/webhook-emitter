@@ -23,12 +23,43 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import httpx
-from fastapi import FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from pydantic import BaseModel, Field
 
 from signers import SIGNERS, SigningContext, sign
 
 log = logging.getLogger("webhook-emitter")
+
+
+def _expected_token() -> Optional[str]:
+    """Bearer token required on protected endpoints. None disables auth."""
+    return os.environ.get("EMITTER_TOKEN")
+
+
+def require_token(authorization: Optional[str] = Header(default=None)) -> None:
+    """FastAPI dependency: 401 unless `Authorization: Bearer <EMITTER_TOKEN>` matches.
+
+    If `EMITTER_TOKEN` is unset, auth is disabled (local-dev mode). Public deployments
+    MUST set it.
+    """
+    expected = _expected_token()
+    if expected is None:
+        return
+    if not authorization or not authorization.lower().startswith("bearer "):
+        raise HTTPException(status_code=401, detail="missing bearer token")
+    presented = authorization.split(" ", 1)[1].strip()
+    if not _consteq(presented, expected):
+        raise HTTPException(status_code=401, detail="invalid bearer token")
+
+
+def _consteq(a: str, b: str) -> bool:
+    """Constant-time equality to defeat timing oracles."""
+    if len(a) != len(b):
+        return False
+    result = 0
+    for x, y in zip(a, b):
+        result |= ord(x) ^ ord(y)
+    return result == 0
 
 
 class FireRequest(BaseModel):
@@ -132,17 +163,19 @@ def verifiers() -> List[str]:
 
 
 @app.get("/templates")
-def list_templates() -> Dict[str, Dict[str, Any]]:
+def list_templates(_: None = Depends(require_token)) -> Dict[str, Dict[str, Any]]:
     return {name: _redact(t) for name, t in _TEMPLATES.items()}
 
 
 @app.post("/fire", response_model=FireResponse)
-def fire(req: FireRequest) -> FireResponse:
+def fire(req: FireRequest, _: None = Depends(require_token)) -> FireResponse:
     return _fire(req)
 
 
 @app.post("/fire-named/{name}", response_model=FireResponse)
-def fire_named(name: str, payload: Dict[str, Any]) -> FireResponse:
+def fire_named(
+    name: str, payload: Dict[str, Any], _: None = Depends(require_token)
+) -> FireResponse:
     template = _TEMPLATES.get(name)
     if template is None:
         raise HTTPException(status_code=404, detail=f"no template '{name}' configured")

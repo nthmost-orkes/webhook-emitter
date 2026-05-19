@@ -21,6 +21,21 @@ pip install -e .
 webhook-emitter --port 8765
 ```
 
+## Auth
+
+If `EMITTER_TOKEN` is set, `POST /fire`, `POST /fire-named/{name}`, and `GET /templates` require `Authorization: Bearer <token>`. `/healthz` and `/verifiers` are always open. If `EMITTER_TOKEN` is unset, all endpoints are open (local-dev mode).
+
+```shell
+export EMITTER_TOKEN="long-random-string"
+webhook-emitter --port 8765
+
+# Calls without the header now 401
+curl -X POST http://localhost:8765/fire ...  # 401
+curl -X POST http://localhost:8765/fire -H "Authorization: Bearer long-random-string" ...  # OK
+```
+
+**Public deployments MUST set `EMITTER_TOKEN`.** The systemd unit sources it from `/etc/webhook-emitter/env`.
+
 Or with templates pre-loaded:
 
 ```shell
