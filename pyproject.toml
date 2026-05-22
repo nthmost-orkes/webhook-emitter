@@ -21,4 +21,4 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-py-modules = ["emitter", "signers"]
+py-modules = ["emitter", "signers", "scenarios"]

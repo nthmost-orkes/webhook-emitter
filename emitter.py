@@ -8,6 +8,8 @@ GET  /verifiers                     list supported verifier names
 POST /fire                          one-shot: caller provides target + verifier + secret + payload
 POST /fire-named/{name}             use a preconfigured template, body is the payload
 GET  /templates                     list configured templates (secrets redacted)
+POST /scenarios/wait-for-webhook    conductor-specific: bundle register-fire-poll
+                                    into one call (mounted if scenarios.py imports cleanly)
 
 Templates are loaded from a JSON file pointed to by `--config`. Optional.
 """
@@ -170,6 +172,15 @@ def list_templates(_: None = Depends(require_token)) -> Dict[str, Dict[str, Any]
 @app.post("/fire", response_model=FireResponse)
 def fire(req: FireRequest, _: None = Depends(require_token)) -> FireResponse:
     return _fire(req)
+
+
+try:
+    from scenarios import router as scenarios_router
+
+    app.include_router(scenarios_router)
+    log.info("mounted /scenarios/* routes")
+except Exception as e:
+    log.warning("scenarios router not mounted (%s) — generic /fire surface still available", e)
 
 
 @app.post("/fire-named/{name}", response_model=FireResponse)
