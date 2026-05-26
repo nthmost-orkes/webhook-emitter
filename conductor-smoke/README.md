@@ -73,3 +73,21 @@ summary: 6/6 verifiers passed
 ## Why not in conductor-oss CI?
 
 Live smoke against a running server is too flaky and slow for the main test suite (would need a testcontainer + bootstrapped server per run). Per-verifier example-based and property tests live in `conductor-oss/conductor`'s `webhooks-oss/src/test/`. This harness is the manual / on-demand counterpart.
+
+## Per-backend matrix (`matrix.sh`)
+
+`matrix.sh` wraps `smoke.py` to validate the full webhook flow against each persistence backing in turn. It brings up the corresponding docker-compose stack from a local `conductor` checkout, waits for `/health`, fires the 6-verifier smoke at the exposed port, then tears down.
+
+```shell
+# Single backing
+matrix.sh --backing postgres
+
+# All supported backings (postgres, mysql, redis, cassandra)
+matrix.sh --backing all
+```
+
+Configuration via env vars: `CONDUCTOR_REPO` (default `~/projects/git/conductor-oss/conductor`), `EMITTER_URL`, `CONDUCTOR_PORT`, `HEALTH_TIMEOUT`. Pass `--build` to force `docker compose build` (needed after source changes); `--keep-up` to leave the stack running for poking afterwards.
+
+Requires `conductor:server` image built from the branch under test — usually `cd $CONDUCTOR_REPO/docker && docker compose -f docker-compose-postgres.yaml build` once, then `matrix.sh` for the runs.
+
+SQLite isn't in the matrix — it's already covered by in-process testcontainer-free tests in the conductor repo (`conductor-sqlite-persistence:test`).
