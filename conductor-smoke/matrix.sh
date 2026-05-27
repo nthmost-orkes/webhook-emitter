@@ -31,11 +31,12 @@ declare -A COMPOSE_FOR=(
   [mysql]=docker-compose-mysql.yaml
   [redis]=docker-compose.yaml
   [cassandra]=docker-compose-cassandra-es7.yaml
+  [postgres+redis]=docker-compose-postgres-redis.yaml
 )
 
 usage() {
   cat >&2 <<EOF
-Usage: $(basename "$0") --backing {postgres|mysql|redis|cassandra|all} [--build] [--keep-up] [--harness {smoke|composite}]
+Usage: $(basename "$0") --backing {postgres|mysql|redis|cassandra|postgres+redis|all} [--build] [--keep-up] [--harness {smoke|composite}]
 
 Options:
   --backing X      Which persistence backing to test. 'all' iterates supported set.
