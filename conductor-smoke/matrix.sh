@@ -83,12 +83,22 @@ if ! curl -sf "$EMITTER_URL/healthz" >/dev/null 2>&1; then
 fi
 
 wait_health() {
-  local timeout="$1" elapsed=0
+  local timeout="$1" compose_file="${2:-}" elapsed=0
   echo "  waiting for http://localhost:$CONDUCTOR_PORT/health (timeout ${timeout}s)..."
   while [ $elapsed -lt "$timeout" ]; do
     if curl -sf "http://localhost:$CONDUCTOR_PORT/health" 2>/dev/null | grep -q '"healthy":true'; then
       echo "  healthy after ${elapsed}s"
       return 0
+    fi
+    # Fast-fail on Spring "APPLICATION FAILED TO START" — no point waiting the full
+    # timeout when the JVM has already conceded. Surfaced by the cassandra (session
+    # closed) and mysql (missing flyway bean) backends as wasted-time-on-known-dead.
+    if [ -n "$compose_file" ] && [ $elapsed -ge 20 ]; then
+      if ( cd "$CONDUCTOR_REPO/docker" && docker compose -f "$compose_file" logs --tail=100 conductor-server 2>/dev/null \
+            | grep -q "APPLICATION FAILED TO START" ); then
+        echo "  conductor-server reports APPLICATION FAILED TO START — fast-failing after ${elapsed}s" >&2
+        return 2
+      fi
     fi
     sleep 5; elapsed=$((elapsed + 5))
   done
@@ -124,7 +134,7 @@ run_one() {
   ( cd "$CONDUCTOR_REPO/docker" && docker compose -f "$file" up -d 2>&1 | tail -5 )
 
   local smoke_rc=0
-  if wait_health "$HEALTH_TIMEOUT"; then
+  if wait_health "$HEALTH_TIMEOUT" "$file"; then
     echo
     if [ "$HARNESS" = "composite" ]; then
       echo "  running composite_smoke.py against conductor on :$CONDUCTOR_PORT..."
@@ -162,7 +172,9 @@ run_one() {
 
 declare -a TARGETS
 if [ "$BACKING" = "all" ]; then
-  TARGETS=(postgres mysql redis cassandra)
+  # Derive from COMPOSE_FOR so new keys (e.g. hybrid stacks) are picked up
+  # automatically. Sorted for deterministic iteration order across runs.
+  mapfile -t TARGETS < <(printf '%s\n' "${!COMPOSE_FOR[@]}" | sort)
 else
   TARGETS=("$BACKING")
 fi

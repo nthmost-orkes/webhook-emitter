@@ -218,13 +218,17 @@ async def run_one_workflow(
     run: WorkflowRun,
 ) -> WorkflowRun:
     try:
-        run.t_start = time.monotonic()
         run.workflow_id = await a_start_workflow(
             client,
             args.conductor_url,
             workflow_name,
             {"idx": run.idx, "runId": args.run_id},
         )
+        # Set t_start AFTER start_workflow returns so settle latency reflects
+        # ready-to-fire → fired, not start-call-latency + ready-to-fire → fired.
+        # The previous placement (before the await) inflated settle_p95 on stacks
+        # with slow workflow-start paths (e.g. redis stack that indexes through ES).
+        run.t_start = time.monotonic()
         # Settle: let conductor dispatch FORK_JOIN/wait registration before we fire.
         # Random jitter avoids lockstep across workers.
         settle = (50 + random.uniform(0, args.start_jitter_ms)) / 1000.0
