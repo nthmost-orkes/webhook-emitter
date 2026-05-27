@@ -35,12 +35,14 @@ declare -A COMPOSE_FOR=(
 
 usage() {
   cat >&2 <<EOF
-Usage: $(basename "$0") --backing {postgres|mysql|redis|cassandra|all} [--build] [--keep-up]
+Usage: $(basename "$0") --backing {postgres|mysql|redis|cassandra|all} [--build] [--keep-up] [--harness {smoke|composite}]
 
 Options:
-  --backing X    Which persistence backing to test. 'all' iterates supported set.
-  --build        Force docker compose build before bring-up (slow; needed after code changes).
-  --keep-up      Don't tear down after; useful for poking at the running stack.
+  --backing X      Which persistence backing to test. 'all' iterates supported set.
+  --build          Force docker compose build before bring-up (slow; needed after code changes).
+  --keep-up        Don't tear down after; useful for poking at the running stack.
+  --harness X      Which harness to run: 'smoke' (default, single-task verifier matrix) or
+                   'composite' (composite workflow stress test via composite_smoke.py).
 
 Environment:
   CONDUCTOR_REPO   path to conductor checkout (default: \$HOME/projects/git/conductor-oss/conductor)
@@ -54,15 +56,22 @@ EOF
 BACKING=""
 BUILD=0
 KEEP_UP=0
+HARNESS="smoke"
 while [ $# -gt 0 ]; do
   case "$1" in
     --backing) BACKING="${2:-}"; shift 2 ;;
     --build) BUILD=1; shift ;;
     --keep-up) KEEP_UP=1; shift ;;
+    --harness) HARNESS="${2:-smoke}"; shift 2 ;;
     -h|--help) usage ;;
     *) echo "unknown arg: $1" >&2; usage ;;
   esac
 done
+
+case "$HARNESS" in
+  smoke|composite) ;;
+  *) echo "unknown --harness value: $HARNESS (supported: smoke, composite)" >&2; usage ;;
+esac
 
 [ -z "$BACKING" ] && usage
 
@@ -116,13 +125,24 @@ run_one() {
   local smoke_rc=0
   if wait_health "$HEALTH_TIMEOUT"; then
     echo
-    echo "  running smoke.py against conductor on :$CONDUCTOR_PORT..."
-    if python3 "$SCRIPT_DIR/smoke.py" \
-        --conductor-url "http://localhost:$CONDUCTOR_PORT" \
-        --emitter-url "$EMITTER_URL"; then
-      smoke_rc=0
+    if [ "$HARNESS" = "composite" ]; then
+      echo "  running composite_smoke.py against conductor on :$CONDUCTOR_PORT..."
+      if python3 "$SCRIPT_DIR/composite_smoke.py" \
+          --conductor-url "http://localhost:$CONDUCTOR_PORT" \
+          --emitter-url "$EMITTER_URL"; then
+        smoke_rc=0
+      else
+        smoke_rc=$?
+      fi
     else
-      smoke_rc=$?
+      echo "  running smoke.py against conductor on :$CONDUCTOR_PORT..."
+      if python3 "$SCRIPT_DIR/smoke.py" \
+          --conductor-url "http://localhost:$CONDUCTOR_PORT" \
+          --emitter-url "$EMITTER_URL"; then
+        smoke_rc=0
+      else
+        smoke_rc=$?
+      fi
     fi
   else
     echo "  conductor never came up healthy; dumping last log lines:" >&2
