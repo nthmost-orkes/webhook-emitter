@@ -19,7 +19,7 @@ JSON_JQ_TRANSFORM/HTTP threaded through) plus a separate TERMINATE workflow.
 | postgres+redis (hybrid) | ✅ 14/14 | New compose, healthy in 5s on first attempt. |
 | mysql | ❌ blocked | Pre-existing Spring context failure — `flyway` bean missing on docker-compose-mysql.yaml. Reproduces on `main`. Confirmed on existing issue conductor-oss/conductor#1104. |
 | cassandra | ❌ blocked | Pre-existing startup race — Cassandra driver session closes during boot-time `getAllTaskDefsFromDB`. Filed as new issue conductor-oss/conductor#1135. |
-| sqlite | not run | Verified during Phase A (composite passed against local `conductor-server-lite bootRun`). Not load-tested. |
+| sqlite | ✅ via Phase A | The server's intrinsic default (`server/src/main/resources/application.properties` sets `conductor.db.type=sqlite`), so Phase A's `:conductor-server-lite:bootRun` run *is* the sqlite functional pass. Not separately load-tested under the docker matrix — see §4. |
 
 The two failures are infrastructure bugs unrelated to the PR — conductor-server
 never starts on either backend, so the WAIT_FOR_WEBHOOK code path is never
@@ -99,12 +99,13 @@ latency vs. postgres's in-process queue path. This is expected behavior, not
 a regression: when you split metadata from queue, you trade some end-to-end
 latency for the deployment shape's other benefits.
 
-## 4. Backends not run
+## 4. Backends not load-tested in the docker matrix
 
-- **sqlite**: covered in Phase A functional but not load-tested. Sqlite
-  serializes writes, so its load floor is well-understood (low throughput, no
-  concurrency benefit). Add it as a follow-up if a documented lower-bound is
-  valuable.
+- **sqlite**: functionally covered by Phase A (which *is* sqlite — see §1).
+  Not separately load-tested because (a) sqlite is in-process, not a docker
+  stack, and (b) it serializes writes, so its load floor is well-understood
+  (low throughput, no concurrency benefit). Add a dedicated load run as a
+  follow-up if a documented lower-bound is valuable.
 - **mysql**: blocked by issue #1104 (pre-existing Flyway bean config bug).
   Cannot be exercised until that is fixed upstream.
 - **cassandra**: blocked by issue #1135 (pre-existing Cassandra driver session
